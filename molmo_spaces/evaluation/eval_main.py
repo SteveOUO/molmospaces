@@ -240,6 +240,20 @@ def get_args():
         default=None,
         help="Override policy_config.camera_names (e.g. --camera_names randomized_zed2_analogue_1 wrist_camera).",
     )
+    parser.add_argument(
+        "--openpi-action-mode",
+        "--openpi_action_mode",
+        choices=["joint_position", "joint_velocity"],
+        default=None,
+        help="Override PiPolicyConfig.openpi_action_mode. Use joint_position for qpos checkpoints and joint_velocity for velocity checkpoints.",
+    )
+    parser.add_argument(
+        "--openpi-control-dt",
+        "--openpi_control_dt",
+        type=float,
+        default=None,
+        help="Override PiPolicyConfig.openpi_control_dt when converting joint_velocity actions.",
+    )
 
     # Eval camera randomization flags (shared across all JSON eval entry points)
     from molmo_spaces.utils.eval_camera_randomization_utils import add_eval_camera_args
@@ -451,6 +465,8 @@ def run_evaluation(
     max_episodes: int | None = None,
     camera_config_override: Any | None = None,
     camera_names_override: list[str] | None = None,
+    openpi_action_mode_override: str | None = None,
+    openpi_control_dt_override: float | None = None,
     environment_light_intensity: float | None = None,
     episode_idx: int | None = None,
     add_custom_object: bool = False,
@@ -625,6 +641,13 @@ def run_evaluation(
         log.info(f"Overriding policy_config.camera_names: {camera_names_override}")
         exp_config.policy_config.camera_names = camera_names_override
 
+    if openpi_action_mode_override is not None:
+        log.info(f"Overriding policy_config.openpi_action_mode: {openpi_action_mode_override}")
+        exp_config.policy_config.openpi_action_mode = openpi_action_mode_override
+    if openpi_control_dt_override is not None:
+        log.info(f"Overriding policy_config.openpi_control_dt: {openpi_control_dt_override}")
+        exp_config.policy_config.openpi_control_dt = openpi_control_dt_override
+
     # Patch config with evaluation-specific runtime parameters
     exp_config = JsonEvalRunner.patch_config(
         exp_config=exp_config,
@@ -744,6 +767,8 @@ def main() -> None:
         environment_light_intensity=args.environment_light_intensity,
         camera_config_override=eval_camera_config,
         camera_names_override=args.camera_names,
+        openpi_action_mode_override=args.openpi_action_mode,
+        openpi_control_dt_override=args.openpi_control_dt,
         episode_idx=args.idx,
         add_custom_object=args.add_custom_object,
         custom_object_path=args.custom_object_path,

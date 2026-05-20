@@ -9,7 +9,7 @@ class PiPolicyConfig(BasePolicyConfig):
     grasping_type: str = "binary"
     grasping_threshold: float = 0.5
     chunk_size: int = 8
-    openpi_action_mode: str = "joint_velocity"
+    openpi_action_mode: str = "joint_position"
     openpi_control_dt: float = 1.0 / 15.0
 
     policy_cls: type = None
