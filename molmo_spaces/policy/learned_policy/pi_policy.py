@@ -32,6 +32,9 @@ class PI_Policy(InferencePolicy, StatefulPolicy):
         self.grasping_type = exp_config.policy_config.grasping_type
         self.chunk_size = exp_config.policy_config.chunk_size
         self.grasping_threshold = exp_config.policy_config.grasping_threshold
+        self.openpi_action_mode = exp_config.policy_config.openpi_action_mode
+        self.openpi_control_dt = float(exp_config.policy_config.openpi_control_dt)
+        self.current_joint_position: np.ndarray | None = None
         self.model = None  # don't init model till inference to allow multiprocessing
 
     def get_state(self):
@@ -69,35 +72,16 @@ class PI_Policy(InferencePolicy, StatefulPolicy):
         self.model = _policy_config.create_trained_policy(self.config, checkpoint_path)
 
     def _prepare_remote_model(self, checkpoint_path: str):
-        try:
-            from openpi_client import websocket_client_policy
-        except ImportError as e:
-            log.warning(
-                "openpi_client package is required for remote model inference. "
-                "Install it with: pip install openpi-client"
-            )
-            raise e
+        from openpi_client import websocket_client_policy
 
-        host = self.remote_config.get("host", "localhost")
-        port = self.remote_config.get("port", 8000)
+        host = self.remote_config["host"]
+        port = self.remote_config["port"]
         self.checkpoint_path = checkpoint_path
-
-        max_retries = 5
-        for attempt in range(max_retries):
-            try:
-                self.model = websocket_client_policy.WebsocketClientPolicy(
-                    host=host,
-                    port=port,
-                )
-                log.info(f"Successfully connected to remote model at {host}:{port}")
-                break
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    log.warning(f"Connection attempt {attempt + 1} failed: {e}. Retrying...")
-                    time.sleep(1)
-                else:
-                    log.error(f"Failed to connect to remote model after {max_retries} attempts")
-                    raise
+        self.model = websocket_client_policy.WebsocketClientPolicy(
+            host=host,
+            port=port,
+        )
+        log.info(f"Successfully connected to remote model at {host}:{port}")
 
     def render(self, obs):
         views = np.concatenate([obs["wrist_camera"], obs["exo_camera_1"]], axis=1)
@@ -116,13 +100,13 @@ class PI_Policy(InferencePolicy, StatefulPolicy):
                     len(obs),
                 )
             obs = obs[0]
-        model_input = {**obs}
         prompt = self.task.get_task_description()
 
         # For local eval
         if isinstance(obs, list | tuple):
             obs = obs[0]
 
+        self.current_joint_position = np.asarray(obs["qpos"]["arm"][:7], dtype=np.float32).reshape(1, 7)
         grip = np.clip(obs["qpos"]["gripper"][0] / 0.824033, 0, 1)
         exo_camera_key = (
             "droid_shoulder_light_randomization"
@@ -135,9 +119,7 @@ class PI_Policy(InferencePolicy, StatefulPolicy):
         model_input = {
             "observation/exterior_image_1_left": resize_with_pad(obs[exo_camera_key], 224, 224),
             "observation/wrist_image_left": resize_with_pad(obs[wrist_camera_key], 224, 224),
-            "observation/joint_position": np.array(obs["qpos"]["arm"][:7]).reshape(
-                7,
-            ),
+            "observation/joint_position": self.current_joint_position.reshape(7),
             "observation/gripper_position": np.array(grip).reshape(
                 1,
             ),
@@ -151,21 +133,24 @@ class PI_Policy(InferencePolicy, StatefulPolicy):
         if self.starting_time is None:
             self.starting_time = time.time()
         if self.actions_buffer is None or self.current_buffer_index >= self.chunk_size:
-            import websockets
-
-            try:
-                self.actions_buffer = self.model.infer(model_input)["actions"]
-            except websockets.exceptions.ConnectionClosedError:
-                log.error("Connection closed error. Attempting to reset connection...")
-                self.prepare_model()
-                log.info("Sleeping 5s...")
-                time.sleep(5)
-                log.info("Retrying inference...")
-                self.actions_buffer = self.model.infer(model_input)["actions"]
+            self.actions_buffer = self._convert_openpi_actions(self.model.infer(model_input)["actions"])
             self.current_buffer_index = 0
         model_output = self.actions_buffer[self.current_buffer_index]
         self.current_buffer_index += 1
         return model_output
+
+    def _convert_openpi_actions(self, actions: np.ndarray) -> np.ndarray:
+        actions = np.asarray(actions, dtype=np.float32)
+        if self.openpi_action_mode == "joint_position":
+            return actions
+        if self.openpi_action_mode != "joint_velocity":
+            raise ValueError(f"Unsupported openpi_action_mode={self.openpi_action_mode!r}.")
+        if self.current_joint_position is None:
+            raise RuntimeError("Missing joint position for OpenPI joint-velocity conversion.")
+        converted = actions.copy()
+        joint_velocity = converted[:, :7]
+        converted[:, :7] = self.current_joint_position + np.cumsum(joint_velocity, axis=0) * self.openpi_control_dt
+        return converted
 
     def model_output_to_action(self, model_output):
         if self.grasping_type == "continuous":

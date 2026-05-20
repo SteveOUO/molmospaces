@@ -5,10 +5,12 @@ class PiPolicyConfig(BasePolicyConfig):
     checkpoint_path: str = "checkpoints/pi"
     # remote_config: None -> launch local server
     # or dict(host,port) -> attaches to remote server
-    remote_config: dict | None = dict(host="localhost", port=8080)
+    remote_config: dict | None = dict(host="localhost", port=8000)
     grasping_type: str = "binary"
     grasping_threshold: float = 0.5
     chunk_size: int = 8
+    openpi_action_mode: str = "joint_velocity"
+    openpi_control_dt: float = 1.0 / 15.0
 
     policy_cls: type = None
     policy_type: str = "learned"
@@ -39,6 +41,26 @@ class DreamZeroPolicyConfig(BasePolicyConfig):
             from molmo_spaces.policy.learned_policy.dreamzero_policy import DreamZero_Policy
 
             self.policy_cls = DreamZero_Policy
+
+
+class SmartWorldPolicyConfig(BasePolicyConfig):
+    checkpoint_path: str = "checkpoints/smartworld"
+    remote_config: dict = dict(host="127.0.0.1", port=7777)
+    grasping_type: str = "binary"
+    grasping_threshold: float = 0.5
+    chunk_size: int = 8
+    duplicate_exo_to_exterior_0: bool = False
+
+    policy_cls: type = None
+    policy_type: str = "learned"
+
+    def model_post_init(self, __context) -> None:
+        """Set policy_cls after initialization to avoid circular imports."""
+        super().model_post_init(__context)
+        if self.policy_cls is None:
+            from molmo_spaces.policy.learned_policy.smartworld_policy import SmartWorld_Policy
+
+            self.policy_cls = SmartWorld_Policy
 
 
 class CAPPolicyConfig(BasePolicyConfig):
