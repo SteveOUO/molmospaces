@@ -25,8 +25,10 @@ class PI_Policy(InferencePolicy, StatefulPolicy):
     def __init__(
         self,
         exp_config: MlSpacesExpConfig,
+        task=None,
     ) -> None:
         super().__init__(exp_config)
+        self.task = task
         self.remote_config = exp_config.policy_config.remote_config
         self.checkpoint_path = exp_config.policy_config.checkpoint_path
         self.grasping_type = exp_config.policy_config.grasping_type

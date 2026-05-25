@@ -26,7 +26,7 @@ class PiPolicyConfig(BasePolicyConfig):
 
 class DreamZeroPolicyConfig(BasePolicyConfig):
     checkpoint_path: str = "checkpoints/dreamzero"
-    remote_config: dict = dict(host="localhost", port=0000)
+    remote_config: dict = dict(host="localhost", port=8000)
     grasping_type: str = "binary"
     grasping_threshold: float = 0.5
     chunk_size: int = 24

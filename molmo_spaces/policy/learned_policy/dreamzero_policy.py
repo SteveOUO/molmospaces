@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 import websockets.exceptions
 import websockets.sync.client
-import msgpack_numpy
+from openpi_client import msgpack_numpy
 
 from molmo_spaces.configs.abstract_exp_config import MlSpacesExpConfig
 from molmo_spaces.policy.base_policy import InferencePolicy
@@ -103,8 +103,10 @@ class DreamZero_Policy(InferencePolicy):
     def __init__(
         self,
         exp_config: MlSpacesExpConfig,
+        task=None,
     ) -> None:
         super().__init__(exp_config)
+        self.task = task
         self.remote_config = exp_config.policy_config.remote_config
         self.checkpoint_path = exp_config.policy_config.checkpoint_path
         self.grasping_type = exp_config.policy_config.grasping_type
@@ -156,6 +158,8 @@ class DreamZero_Policy(InferencePolicy):
 
     def obs_to_model_input(self, obs):
         # self.render(obs)
+        if isinstance(obs, (list, tuple)):
+            obs = obs[0]
         prompt = self.task.get_task_description()
         grip = np.clip(obs["qpos"]["gripper"][0] / 0.824033, 0, 1)
         if grip < 0.1:

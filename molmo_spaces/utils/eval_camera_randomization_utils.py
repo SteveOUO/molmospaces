@@ -149,6 +149,15 @@ def add_eval_camera_args(parser: argparse.ArgumentParser) -> None:
         default=0.0,
         help="Camera randomization level (0-100). Only used with --use_eval_cameras.",
     )
+    group.add_argument(
+        "--camera_system",
+        choices=["benchmark", "franka_eval", "smartworld_droid_three_view"],
+        default="benchmark",
+        help=(
+            "Override benchmark cameras. `smartworld_droid_three_view` provides "
+            "exo_camera_1, exo_camera_2, and wrist_camera for SmartWorld."
+        ),
+    )
 
 
 def build_eval_camera_config_from_args(
@@ -159,8 +168,20 @@ def build_eval_camera_config_from_args(
     Returns None if --use_eval_cameras was not passed. Otherwise, creates the eval camera
     system with the requested camera subset and randomization level applied.
     """
-    if not args.use_eval_cameras:
+    camera_system = getattr(args, "camera_system", "benchmark")
+    if args.use_eval_cameras and camera_system == "benchmark":
+        camera_system = "franka_eval"
+
+    if camera_system == "benchmark":
         return None
+
+    if camera_system == "smartworld_droid_three_view":
+        from molmo_spaces.configs.camera_configs import FrankaSmartWorldDroidThreeViewCameraSystem
+
+        return FrankaSmartWorldDroidThreeViewCameraSystem()
+
+    if camera_system != "franka_eval":
+        raise ValueError(f"Unknown camera_system: {camera_system}")
 
     from molmo_spaces.configs.camera_configs import FrankaEvalCameraSystem
 

@@ -36,6 +36,7 @@ from molmo_spaces.configs.policy_configs_baselines import (
     CAPPolicyConfig,
     DreamZeroPolicyConfig,
     PiPolicyConfig,
+    SmartWorldPolicyConfig,
     TeleopPolicyConfig,
 )
 from molmo_spaces.configs.robot_configs import (
@@ -52,9 +53,6 @@ from molmo_spaces.configs.task_sampler_configs import (
     BaseMujocoTaskSamplerConfig,
     PickAndPlaceColorTaskSamplerConfig,
     PickAndPlaceTaskSamplerConfig,
-)
-from molmo_spaces.data_generation.config.object_manipulation_datagen_configs import (
-    FrankaPickAndPlaceDataGenConfig,
 )
 from molmo_spaces.policy.dummy_policy import BrownianMotionPolicy, DummyPolicy
 from molmo_spaces.tasks.pick_and_place_color_task import PickAndPlaceColorTask
@@ -216,7 +214,7 @@ class TeleopPolicyEvalConfig(JsonBenchmarkEvalConfig):
 
 
 # @register_config("DummyPickPlaceEvalConfig")
-class DummyPickPlaceEvalConfig(FrankaPickAndPlaceDataGenConfig):
+class DummyPickPlaceEvalConfig(JsonBenchmarkEvalConfig):
     """Evaluation config for Dummy pick and place."""
 
     wandb_project: str = "dummy-eval"
@@ -247,7 +245,7 @@ class DummyPickPlaceEvalConfig(FrankaPickAndPlaceDataGenConfig):
 
 
 # @register_config("BrownianMotionPickPlaceEvalConfig")
-class BrownianMotionPickPlaceEvalConfig(FrankaPickAndPlaceDataGenConfig):
+class BrownianMotionPickPlaceEvalConfig(JsonBenchmarkEvalConfig):
     """Evaluation config for Dummy pick and place."""
 
     wandb_project: str = "brownian-motion-eval"
@@ -296,6 +294,17 @@ class DreamZeroPolicyEvalConfig(JsonBenchmarkEvalConfig):
     robot_config: FrankaRobotConfig = FrankaRobotConfig()
     policy_config: DreamZeroPolicyConfig = DreamZeroPolicyConfig()
     policy_dt_ms: float = 66.0
+
+    def model_post_init(self, __context):
+        super().model_post_init(__context)
+        self.robot_config.action_noise_config.enabled = False
+
+
+class SmartWorldPolicyEvalConfig(JsonBenchmarkEvalConfig):
+    robot_config: FrankaRobotConfig = FrankaRobotConfig()
+    policy_config: SmartWorldPolicyConfig = SmartWorldPolicyConfig()
+    policy_dt_ms: float = 66.0
+    end_on_success: bool = True
 
     def model_post_init(self, __context):
         super().model_post_init(__context)

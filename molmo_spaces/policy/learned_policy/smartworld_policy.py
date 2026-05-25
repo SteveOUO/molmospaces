@@ -165,6 +165,7 @@ class SmartWorld_Policy(InferencePolicy):
         self.starting_time = None
         self._logged_first_request = False
         self._executed_actions_since_request = []
+        self._image_history_since_request = []
 
     def reset(self):
         self.actions_buffer = None
@@ -172,6 +173,7 @@ class SmartWorld_Policy(InferencePolicy):
         self.control_step = 0
         self.starting_time = None
         self._executed_actions_since_request = []
+        self._image_history_since_request = []
         if self.model is not None:
             self.model.reset()
 
@@ -242,6 +244,12 @@ class SmartWorld_Policy(InferencePolicy):
                 getattr(wrist_image, "dtype", None),
             )
             self._logged_first_request = True
+        history_views = {
+            "observation/exterior_image_0_left": exterior_0,
+            "observation/exterior_image_1_left": exterior_1,
+            "observation/wrist_image_left": wrist_image,
+        }
+        stitched_frame = np.concatenate([exterior_0, exterior_1, wrist_image], axis=1)
         model_input = {
             "observation/exterior_image_0_left": exterior_0,
             "observation/exterior_image_1_left": exterior_1,
@@ -250,7 +258,16 @@ class SmartWorld_Policy(InferencePolicy):
             "observation/gripper_position": np.asarray([grip], dtype=np.float32),
             "prompt": prompt.lower(),
             "control_step": int(self.control_step),
+            "_smartworld_stitched_frame": stitched_frame,
         }
+        if len(self._image_history_since_request) > 0:
+            history_steps, history_view_dicts = zip(*self._image_history_since_request)
+            model_input["history/step_indices"] = np.asarray(history_steps, dtype=np.int64)
+            for request_key in history_views:
+                model_input[f"history/{request_key}"] = np.stack(
+                    [view_dict[request_key] for view_dict in history_view_dicts],
+                    axis=0,
+                ).astype(np.uint8, copy=False)
         if len(self._executed_actions_since_request) > 0:
             model_input["history/executed_action_count"] = len(self._executed_actions_since_request)
             model_input["history/executed_actions"] = np.stack(self._executed_actions_since_request, axis=0).astype(np.float32)
@@ -262,6 +279,7 @@ class SmartWorld_Policy(InferencePolicy):
         if self.starting_time is None:
             self.starting_time = time.time()
 
+        stitched_frame = model_input.pop("_smartworld_stitched_frame")
         if self.actions_buffer is None or self.current_buffer_index >= len(self.actions_buffer):
             result = self.model.infer(model_input)
             if "actions" not in result:
@@ -274,6 +292,19 @@ class SmartWorld_Policy(InferencePolicy):
             self.actions_buffer = actions[: self.chunk_size]
             self.current_buffer_index = 0
             self._executed_actions_since_request = []
+            self._image_history_since_request = []
+        else:
+            history_views = {
+                "observation/exterior_image_0_left": model_input["observation/exterior_image_0_left"],
+                "observation/exterior_image_1_left": model_input["observation/exterior_image_1_left"],
+                "observation/wrist_image_left": model_input["observation/wrist_image_left"],
+            }
+            self._image_history_since_request.append(
+                (
+                    int(model_input["control_step"]),
+                    {key: value.copy() for key, value in history_views.items()},
+                )
+            )
 
         model_output = self.actions_buffer[self.current_buffer_index]
         self.current_buffer_index += 1

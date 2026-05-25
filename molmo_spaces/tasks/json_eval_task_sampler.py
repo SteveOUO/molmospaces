@@ -229,13 +229,17 @@ class JsonEvalTaskSampler(BaseMujocoTaskSampler):
             episode_spec
         )
 
-        # Detect whether the caller injected a FrankaEvalCameraSystem
+        # Detect whether the caller injected a camera override.
         from molmo_spaces.configs.camera_configs import FrankaEvalCameraSystem
 
+        self._camera_config_override: CameraSystemConfig | None = None
         if isinstance(exp_config.camera_config, FrankaEvalCameraSystem):
             self._eval_camera_system: FrankaEvalCameraSystem | None = exp_config.camera_config
             # Keep the eval system on exp_config.camera_config so the sensor
             # suite (image resolution, camera names) is built from it.
+        elif exp_config.camera_config is not None:
+            self._eval_camera_system = None
+            self._camera_config_override = exp_config.camera_config
         else:
             self._eval_camera_system = None
             # No eval system — use recorded cameras as-is
@@ -673,7 +677,8 @@ class JsonEvalTaskSampler(BaseMujocoTaskSampler):
            checks.  Raises ``CameraPlacementError`` on failure.
         """
         if self._eval_camera_system is None:
-            env.camera_manager.setup_cameras(env, self._recorded_camera_config)
+            camera_config = self._camera_config_override or self._recorded_camera_config
+            env.camera_manager.setup_cameras(env, camera_config)
             return
 
         from molmo_spaces.utils.eval_camera_randomization_utils import (

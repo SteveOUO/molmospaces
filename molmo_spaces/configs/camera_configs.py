@@ -385,6 +385,45 @@ class FrankaDroidCameraSystem(CameraSystemConfig):
     ]
 
 
+class FrankaSmartWorldDroidThreeViewCameraSystem(CameraSystemConfig):
+    """Deterministic DROID-style camera system for SmartWorld evaluation.
+
+    SmartWorld consumes two exterior views plus one wrist view.  The stock
+    MolmoSpaces Droid config only exposes one exterior view, so this keeps the
+    existing left shoulder pose and adds the matching right shoulder pose.
+    """
+
+    img_resolution: tuple[int, int] = (624, 352)
+    cameras: list[AllCameraTypes] = [
+        MjcfCameraConfig(
+            name="wrist_camera",
+            mjcf_name="gripper/wrist_camera",
+            robot_namespace="robot_0/",
+            fov=52.0,
+        ),
+        RobotMountedCameraConfig(
+            name="exo_camera_1",
+            reference_body_names=["robot_0/fr3_link0"],
+            camera_offset=[0.05, 0.57, 0.66],
+            camera_quaternion=[-0.393, -0.195, 0.399, 0.805],
+            fov=71.0,
+            visibility_constraints={
+                "__task_objects__": 0.001,
+            },
+        ),
+        RobotMountedCameraConfig(
+            name="exo_camera_2",
+            reference_body_names=["robot_0/fr3_link0"],
+            camera_offset=[0.05, -0.57, 0.66],
+            camera_quaternion=[0.805, 0.399, -0.195, -0.393],
+            fov=71.0,
+            visibility_constraints={
+                "__task_objects__": 0.001,
+            },
+        ),
+    ]
+
+
 class FrankaEasyRandomizedDroidCameraSystem(CameraSystemConfig):
     """Camera system for Franka DROID system with wrist cam (ZED mini) and 2 randomized exo cams (ZED 2/ZED 2i).
 
@@ -947,6 +986,7 @@ AllCameraSystems: TypeAlias = (
     | FrankaRandomizedD405D455CameraSystem
     | FrankaEasyRandomizedDroidCameraSystem
     | FrankaDroidCameraSystem
+    | FrankaSmartWorldDroidThreeViewCameraSystem
     | FrankaOmniPurposeCameraSystem
     | FrankaRandomizedDroidCameraSystem
     | FrankaGoProD405D455CameraSystem
