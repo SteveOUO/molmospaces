@@ -186,6 +186,14 @@ class SmartWorld_Policy(InferencePolicy):
             or self.remote_config.get("port", 8000)
         )
         self.model = SmartWorldWebsocketClient(host=host, port=port)
+        metadata = self.model.get_server_metadata()
+        if bool(metadata.get("causal_action_rollout")):
+            causal_chunk_len = int(metadata.get("causal_action_chunk_len") or 0)
+            if causal_chunk_len > 0 and int(self.chunk_size) < causal_chunk_len:
+                raise ValueError(
+                    "SmartWorld causal rollout requires consuming a full causal action chunk before re-querying. "
+                    f"Got SMARTWORLD_CHUNK_SIZE={self.chunk_size}, causal_action_chunk_len={causal_chunk_len}."
+                )
 
     def obs_to_model_input(self, obs):
         if isinstance(obs, list):
